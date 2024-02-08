@@ -1,70 +1,69 @@
 import time
 import os
+import cv2
+import keyboard
+import numpy as np
 import pygetwindow as pgw
-from PIL import Image, ImageGrab
-from pynput.keyboard import Key, Listener
+from PIL import ImageGrab
 
-# Title of the window you want to try to capture
-title = 'Discord'
+window_title = 'Palia' # Program window title
+output_path = 'recordings' # Output directory
+screenshot_interval = 1 # Screen capture rate
 
-# Where you want your screenshots to be saved
-output_path = 'screenshots'
-
-# How frequent the screenshots are taken
-screenshot_interval = 1
-
-# Key to toggle recording
-recording_hotkey = 'g'
-
+video_writer = None
 recording = False
-current_recording = None
 
-# Probably not necessary for this to be a function, but may help in future
-def take_screenshot(left, top, right, bottom):
-    screenshot = ImageGrab.grab(bbox=(left, top, right, bottom))
+def new_video_writer():
+    global video_writer
 
-    return screenshot
+    # Modify these for changes to video output
+    output_file_path = f'{output_path}/{round(time.time())}.mp4'
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
+    fps = 10
+    size = (1920, 1080)
+    video_writer = cv2.VideoWriter(output_file_path, fourcc, fps, size) 
 
-def on_press(key):
-    global recording
-    global current_recording
-    
-    try:
-        if key.char == recording_hotkey and not recording:
-            #Grouping each series of screenshots into a 'recording'
-            current_recording = f'{output_path}/{round(time.time())}'
-            os.mkdir(current_recording)
-            
-            recording = True
-            print('Recording started')
-        elif key.char == recording_hotkey:
-            recording = False
-            print('Recording stopped')
-    except:
-        pass
+def toggle_recording():
+    global recording, video_writer
+
+    if not recording:
+        print('Recording started')
+        
+        recording = True
+        
+        new_video_writer()  
+    else:
+        print('Recording stopped')
+        
+        recording = False
+        
+        if video_writer:
+            video_writer.release()
 
 if __name__ == '__main__':
-    # pynput listener is a thread
-    listener = Listener(on_press=on_press)
-    listener.start()
+    keyboard.add_hotkey('-', toggle_recording)
 
-    if not os.path.exists(output_path):
-        print('Creating output path')
+    if not os.path.exists:
         os.mkdir(output_path)
     
     while True:
+        # Try block is for cases where there's no windows with the given title
         try:
-            window = pgw.getWindowsWithTitle(title)[0]
+            window = pgw.getWindowsWithTitle(window_title)[0]
 
             if not window.isMinimized and recording:
-                left, top = window.topleft
-                right, bottom = window.bottomright
+                screenshot = ImageGrab.grab()
+                frame = np.array(screenshot)
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-                screenshot = take_screenshot(left, top, right, bottom)
-                screenshot.save(f'{current_recording}/{round(time.time())}.jpg')
+                video_writer.write(frame)
         except IndexError:
-            print(f'Program "{title}" is not currently running!')
-        except Exception as exception:
-            print(exception)
+            print(f'Program "{window_title}" is not currently running!')
+        except Exception as e:
+            print(e)
 
         time.sleep(screenshot_interval)
+
+#Cleanup
+if video_writer:
+    video_writer.release()
